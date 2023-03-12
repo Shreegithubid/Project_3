@@ -1,0 +1,1053 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>at_15.html</title>
+    <link href="assets/style.css" rel="stylesheet" type="text/css"/></head>
+  <body onLoad="init()">
+    <script>/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+function toArray(iter) {
+    if (iter === null) {
+        return null;
+    }
+    return Array.prototype.slice.call(iter);
+}
+
+function find(selector, elem) { // eslint-disable-line no-redeclare
+    if (!elem) {
+        elem = document;
+    }
+    return elem.querySelector(selector);
+}
+
+function findAll(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return toArray(elem.querySelectorAll(selector));
+}
+
+function sortColumn(elem) {
+    toggleSortStates(elem);
+    const colIndex = toArray(elem.parentNode.childNodes).indexOf(elem);
+    let key;
+    if (elem.classList.contains('result')) {
+        key = keyResult;
+    } else if (elem.classList.contains('links')) {
+        key = keyLink;
+    } else {
+        key = keyAlpha;
+    }
+    sortTable(elem, key(colIndex));
+}
+
+function showAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(showExtras);
+}
+
+function hideAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(hideExtras);
+}
+
+function showExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.remove('collapsed');
+    expandcollapse.classList.remove('expander');
+    expandcollapse.classList.add('collapser');
+}
+
+function hideExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.add('collapsed');
+    expandcollapse.classList.remove('collapser');
+    expandcollapse.classList.add('expander');
+}
+
+function showFilters() {
+    let visibleString = getQueryParameter('visible') || 'all';
+    visibleString = visibleString.toLowerCase();
+    const checkedItems = visibleString.split(',');
+
+    const filterItems = document.getElementsByClassName('filter');
+    for (let i = 0; i < filterItems.length; i++) {
+        filterItems[i].hidden = false;
+
+        if (visibleString != 'all') {
+            filterItems[i].checked = checkedItems.includes(filterItems[i].getAttribute('data-test-result'));
+            filterTable(filterItems[i]);
+        }
+    }
+}
+
+function addCollapse() {
+    // Add links for show/hide all
+    const resulttable = find('table#results-table');
+    const showhideall = document.createElement('p');
+    showhideall.innerHTML = '<a href="javascript:showAllExtras()">Show all details</a> / ' +
+                            '<a href="javascript:hideAllExtras()">Hide all details</a>';
+    resulttable.parentElement.insertBefore(showhideall, resulttable);
+
+    // Add show/hide link to each result
+    findAll('.col-result').forEach(function(elem) {
+        const collapsed = getQueryParameter('collapsed') || 'Passed';
+        const extras = elem.parentNode.nextElementSibling;
+        const expandcollapse = document.createElement('span');
+        if (extras.classList.contains('collapsed')) {
+            expandcollapse.classList.add('expander');
+        } else if (collapsed.includes(elem.innerHTML)) {
+            extras.classList.add('collapsed');
+            expandcollapse.classList.add('expander');
+        } else {
+            expandcollapse.classList.add('collapser');
+        }
+        elem.appendChild(expandcollapse);
+
+        elem.addEventListener('click', function(event) {
+            if (event.currentTarget.parentNode.nextElementSibling.classList.contains('collapsed')) {
+                showExtras(event.currentTarget);
+            } else {
+                hideExtras(event.currentTarget);
+            }
+        });
+    });
+}
+
+function getQueryParameter(name) {
+    const match = RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+    return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
+}
+
+function init () { // eslint-disable-line no-unused-vars
+    resetSortHeaders();
+
+    addCollapse();
+
+    showFilters();
+
+    sortColumn(find('.initial-sort'));
+
+    findAll('.sortable').forEach(function(elem) {
+        elem.addEventListener('click',
+            function() {
+                sortColumn(elem);
+            }, false);
+    });
+}
+
+function sortTable(clicked, keyFunc) {
+    const rows = findAll('.results-table-row');
+    const reversed = !clicked.classList.contains('asc');
+    const sortedRows = sort(rows, keyFunc, reversed);
+    /* Whole table is removed here because browsers acts much slower
+     * when appending existing elements.
+     */
+    const thead = document.getElementById('results-table-head');
+    document.getElementById('results-table').remove();
+    const parent = document.createElement('table');
+    parent.id = 'results-table';
+    parent.appendChild(thead);
+    sortedRows.forEach(function(elem) {
+        parent.appendChild(elem);
+    });
+    document.getElementsByTagName('BODY')[0].appendChild(parent);
+}
+
+function sort(items, keyFunc, reversed) {
+    const sortArray = items.map(function(item, i) {
+        return [keyFunc(item), i];
+    });
+
+    sortArray.sort(function(a, b) {
+        const keyA = a[0];
+        const keyB = b[0];
+
+        if (keyA == keyB) return 0;
+
+        if (reversed) {
+            return keyA < keyB ? 1 : -1;
+        } else {
+            return keyA > keyB ? 1 : -1;
+        }
+    });
+
+    return sortArray.map(function(item) {
+        const index = item[1];
+        return items[index];
+    });
+}
+
+function keyAlpha(colIndex) {
+    return function(elem) {
+        return elem.childNodes[1].childNodes[colIndex].firstChild.data.toLowerCase();
+    };
+}
+
+function keyLink(colIndex) {
+    return function(elem) {
+        const dataCell = elem.childNodes[1].childNodes[colIndex].firstChild;
+        return dataCell == null ? '' : dataCell.innerText.toLowerCase();
+    };
+}
+
+function keyResult(colIndex) {
+    return function(elem) {
+        const strings = ['Error', 'Failed', 'Rerun', 'XFailed', 'XPassed',
+            'Skipped', 'Passed'];
+        return strings.indexOf(elem.childNodes[1].childNodes[colIndex].firstChild.data);
+    };
+}
+
+function resetSortHeaders() {
+    findAll('.sort-icon').forEach(function(elem) {
+        elem.parentNode.removeChild(elem);
+    });
+    findAll('.sortable').forEach(function(elem) {
+        const icon = document.createElement('div');
+        icon.className = 'sort-icon';
+        icon.textContent = 'vvv';
+        elem.insertBefore(icon, elem.firstChild);
+        elem.classList.remove('desc', 'active');
+        elem.classList.add('asc', 'inactive');
+    });
+}
+
+function toggleSortStates(elem) {
+    //if active, toggle between asc and desc
+    if (elem.classList.contains('active')) {
+        elem.classList.toggle('asc');
+        elem.classList.toggle('desc');
+    }
+
+    //if inactive, reset all other functions and add ascending active
+    if (elem.classList.contains('inactive')) {
+        resetSortHeaders();
+        elem.classList.remove('inactive');
+        elem.classList.add('active');
+    }
+}
+
+function isAllRowsHidden(value) {
+    return value.hidden == false;
+}
+
+function filterTable(elem) { // eslint-disable-line no-unused-vars
+    const outcomeAtt = 'data-test-result';
+    const outcome = elem.getAttribute(outcomeAtt);
+    const classOutcome = outcome + ' results-table-row';
+    const outcomeRows = document.getElementsByClassName(classOutcome);
+
+    for(let i = 0; i < outcomeRows.length; i++){
+        outcomeRows[i].hidden = !elem.checked;
+    }
+
+    const rows = findAll('.results-table-row').filter(isAllRowsHidden);
+    const allRowsHidden = rows.length == 0 ? true : false;
+    const notFoundMessage = document.getElementById('not-found-message');
+    notFoundMessage.hidden = !allRowsHidden;
+}
+</script>
+    <h1>at_15.html</h1>
+    <p>Report generated on 12-Mar-2023 at 19:40:48 by <a href="https://pypi.python.org/pypi/pytest-html">pytest-html</a> v3.2.0</p>
+    <h2>Environment</h2>
+    <table id="environment">
+      <tr>
+        <td>Packages</td>
+        <td>{"pluggy": "1.0.0", "pytest": "7.2.1"}</td></tr>
+      <tr>
+        <td>Platform</td>
+        <td>Windows-10-10.0.22621-SP0</td></tr>
+      <tr>
+        <td>Plugins</td>
+        <td>{"html": "3.2.0", "metadata": "2.0.4"}</td></tr>
+      <tr>
+        <td>Python</td>
+        <td>3.11.0</td></tr></table>
+    <h2>Summary</h2>
+    <p>13 tests ran in 417.39 seconds. </p>
+    <p class="filter" hidden="true">(Un)check the boxes to filter the results.</p><input checked="true" class="filter" data-test-result="passed" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="passed">13 passed</span>, <input checked="true" class="filter" data-test-result="skipped" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="skipped">0 skipped</span>, <input checked="true" class="filter" data-test-result="failed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="failed">0 failed</span>, <input checked="true" class="filter" data-test-result="error" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="error">0 errors</span>, <input checked="true" class="filter" data-test-result="xfailed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xfailed">0 expected failures</span>, <input checked="true" class="filter" data-test-result="xpassed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xpassed">0 unexpected passes</span>
+    <h2>Results</h2>
+    <table id="results-table">
+      <thead id="results-table-head">
+        <tr>
+          <th class="sortable result initial-sort" col="result">Result</th>
+          <th class="sortable" col="name">Test</th>
+          <th class="sortable" col="duration">Duration</th>
+          <th class="sortable links" col="links">Links</th></tr>
+        <tr hidden="true" id="not-found-message">
+          <th colspan="4">No results found. Try to check the filters</th></tr></thead>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">app.py::Test_Hrm::test_login</td>
+          <td class="col-duration">63.98</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stderr setup------------------------------ <br/>[WDM] - Downloading:   0%|                                                                 | 0.00/1.61k [00:00&lt;?, ?B/s][WDM] - Downloading: 16.9kB [00:00, 4.68MB/s]                                                                          
+<br/> ------------------------------Captured stdout call------------------------------ <br/>The user should be able to see all individual menu upper name lower name should be displayed under search textbox
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">app.py::Test_Hrm::test_adminpage</td>
+          <td class="col-duration">20.67</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stderr setup------------------------------ <br/>[WDM] - Downloading:   0%|                                                                 | 0.00/1.60k [00:00&lt;?, ?B/s][WDM] - Downloading: 16.9kB [00:00, 5.43MB/s]                                                                          
+<br/> ------------------------------Captured stdout call------------------------------ <br/>The user should be able to see all dropdown visible
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">app.py::Test_Hrm::test_entry_employee</td>
+          <td class="col-duration">21.34</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stderr setup------------------------------ <br/>[WDM] - Downloading:   0%|                                                                 | 0.00/1.60k [00:00&lt;?, ?B/s][WDM] - Downloading: 16.9kB [00:00, ?B/s]                                                                              
+<br/> ------------------------------Captured stdout call------------------------------ <br/>The user should be able to see the page moved  to  Employee list once user created
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">app.py::Test_Hrm::test_search_employee</td>
+          <td class="col-duration">24.65</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>The user should be able to see all the  tabs  present in Employee list page
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">app.py::Test_Hrm::test_personal_employee</td>
+          <td class="col-duration">29.33</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stderr setup------------------------------ <br/>[WDM] - Downloading:   0%|                                                                 | 0.00/1.61k [00:00&lt;?, ?B/s][WDM] - Downloading: 16.9kB [00:00, ?B/s]                                                                              
+<br/> ------------------------------Captured stdout call------------------------------ <br/>The user should be able to see all the filled details present in personal details page
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">app.py::Test_Hrm::test_contact_detail</td>
+          <td class="col-duration">34.49</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stderr setup------------------------------ <br/>[WDM] - Downloading:   0%|                                                                 | 0.00/1.60k [00:00&lt;?, ?B/s][WDM] - Downloading: 16.9kB [00:00, ?B/s]                                                                              
+<br/> ------------------------------Captured stdout call------------------------------ <br/>-- Select --
+Afghanistan
+Albania
+Algeria
+American Samoa
+Andorra
+Angola
+Anguilla
+Antarctica
+Antigua and Barbuda
+Argentina
+Armenia
+Aruba
+Australia
+Austria
+Azerbaijan
+Bahamas
+Bahrain
+Bangladesh
+Barbados
+Belarus
+Belgium
+Belize
+Benin
+Bermuda
+Bhutan
+Bolivia
+Bosnia and Herzegovina
+Botswana
+Bouvet Island
+Brazil
+British Indian Ocean Territory
+Brunei Darussalam
+Bulgaria
+Burkina Faso
+Burundi
+Cambodia
+Cameroon
+Canada
+Cape Verde
+Cayman Islands
+Central African Republic
+Chad
+Chile
+China
+Christmas Island
+Cocos (Keeling) Islands
+Colombia
+Comoros
+Congo
+Congo, the Democratic Republic of the
+Cook Islands
+Costa Rica
+Cote D&#x27;Ivoire
+Croatia
+Cuba
+Cyprus
+Czech Republic
+Denmark
+Djibouti
+Dominica
+Dominican Republic
+Ecuador
+Egypt
+El Salvador
+Equatorial Guinea
+Eritrea
+Estonia
+Ethiopia
+Falkland Islands (Malvinas)
+Faroe Islands
+Fiji
+Finland
+France
+French Guiana
+French Polynesia
+French Southern Territories
+Gabon
+Gambia
+Georgia
+Germany
+Ghana
+Gibraltar
+Greece
+Greenland
+Grenada
+Guadeloupe
+Guam
+Guatemala
+Guinea
+Guinea-Bissau
+Guyana
+Haiti
+Heard Island and Mcdonald Islands
+Holy See (Vatican City State)
+Honduras
+Hong Kong
+Hungary
+Iceland
+India
+Indonesia
+Iran, Islamic Republic of
+Iraq
+Ireland
+Israel
+Italy
+Jamaica
+Japan
+Jordan
+Kazakhstan
+Kenya
+Kiribati
+Korea, Democratic People&#x27;s Republic of
+Korea, Republic of
+Kuwait
+Kyrgyzstan
+Lao People&#x27;s Democratic Republic
+Latvia
+Lebanon
+Lesotho
+Liberia
+Libyan Arab Jamahiriya
+Liechtenstein
+Lithuania
+Luxembourg
+Macao
+Macedonia, the Former Yugoslav Republic of
+Madagascar
+Malawi
+Malaysia
+Maldives
+Mali
+Malta
+Marshall Islands
+Martinique
+Mauritania
+Mauritius
+Mayotte
+Mexico
+Micronesia, Federated States of
+Moldova, Republic of
+Monaco
+Mongolia
+Montserrat
+Morocco
+Mozambique
+Myanmar
+Namibia
+Nauru
+Nepal
+Netherlands
+Netherlands Antilles
+New Caledonia
+New Zealand
+Nicaragua
+Niger
+Nigeria
+Niue
+Norfolk Island
+Northern Mariana Islands
+Norway
+Oman
+Pakistan
+Palau
+Palestinian Territory, Occupied
+Panama
+Papua New Guinea
+Paraguay
+Peru
+Philippines
+Pitcairn
+Poland
+Portugal
+Puerto Rico
+Qatar
+Reunion
+Romania
+Russian Federation
+Rwanda
+Saint Helena
+Saint Kitts and Nevis
+Saint Lucia
+Saint Pierre and Miquelon
+Saint Vincent and the Grenadines
+Samoa
+San Marino
+Sao Tome and Principe
+Saudi Arabia
+Senegal
+Serbia and Montenegro
+Seychelles
+Sierra Leone
+Singapore
+Slovakia
+Slovenia
+Solomon Islands
+Somalia
+South Africa
+South Georgia and the South Sandwich Islands
+Spain
+Sri Lanka
+Sudan
+Suriname
+Svalbard and Jan Mayen
+Swaziland
+Sweden
+Switzerland
+Syrian Arab Republic
+Taiwan
+Tajikistan
+Tanzania, United Republic of
+Thailand
+Timor-Leste
+Togo
+Tokelau
+Tonga
+Trinidad and Tobago
+Tunisia
+Turkey
+Turkmenistan
+Turks and Caicos Islands
+Tuvalu
+Uganda
+Ukraine
+United Arab Emirates
+United Kingdom
+United States
+United States Minor Outlying Islands
+Uruguay
+Uzbekistan
+Vanuatu
+Venezuela
+Viet Nam
+Virgin Islands, British
+Virgin Islands, U.s.
+Wallis and Futuna
+Western Sahara
+Yemen
+Zambia
+Zimbabwe
+The user should be able to see all the filled details present in contact details page
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">app.py::Test_Hrm::test_emergency_details</td>
+          <td class="col-duration">35.77</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stderr setup------------------------------ <br/>[WDM] - Downloading:   0%|                                                                 | 0.00/1.61k [00:00&lt;?, ?B/s][WDM] - Downloading: 16.9kB [00:00, 1.82MB/s]                                                                          
+<br/> ------------------------------Captured stdout call------------------------------ <br/>The user should be able to see all the filled details present in emerengcy details page
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">app.py::Test_Hrm::test_dependents_details</td>
+          <td class="col-duration">29.61</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stderr setup------------------------------ <br/>[WDM] - Downloading:   0%|                                                                 | 0.00/1.61k [00:00&lt;?, ?B/s][WDM] - Downloading: 16.9kB [00:00, ?B/s]                                                                              
+<br/> ------------------------------Captured stdout call------------------------------ <br/>-- Select --
+Child
+Other
+The user should be able to see all the filled details present in dependent details page
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">app.py::Test_Hrm::test_job_detail</td>
+          <td class="col-duration">38.20</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stderr setup------------------------------ <br/>[WDM] - Downloading:   0%|                                                                 | 0.00/1.61k [00:00&lt;?, ?B/s][WDM] - Downloading: 16.9kB [00:00, ?B/s]                                                                              
+<br/> ------------------------------Captured stdout call------------------------------ <br/>The user should be able to see all the filled details present in job details page
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">app.py::Test_Hrm::test_terminate_employee</td>
+          <td class="col-duration">29.29</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stderr setup------------------------------ <br/>[WDM] - Downloading:   0%|                                                                 | 0.00/1.61k [00:00&lt;?, ?B/s][WDM] - Downloading: 16.9kB [00:00, ?B/s]                                                                              
+<br/> ------------------------------Captured stdout call------------------------------ <br/>The user should be able to see all the filled details present in terminate details page
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">app.py::Test_Hrm::test_activate_employee</td>
+          <td class="col-duration">27.90</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stderr setup------------------------------ <br/>[WDM] - Downloading:   0%|                                                                 | 0.00/1.61k [00:00&lt;?, ?B/s][WDM] - Downloading: 16.9kB [00:00, 3.93MB/s]                                                                          
+<br/> ------------------------------Captured stdout call------------------------------ <br/>The user should be able to see activation on job  Details page
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">app.py::Test_Hrm::test_salarydetails</td>
+          <td class="col-duration">30.03</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stderr setup------------------------------ <br/>[WDM] - Downloading:   0%|                                                                 | 0.00/1.61k [00:00&lt;?, ?B/s][WDM] - Downloading: 16.9kB [00:00, ?B/s]                                                                              
+<br/> ------------------------------Captured stdout call------------------------------ <br/>-- Select --
+Grade 1
+Grade 2
+Grade 3
+Grade 4
+Grade 5
+-- Select --
+Bi Weekly
+Hourly
+Monthly
+Monthly on first pay of month.
+Semi Monthly
+Weekly
+-- Select --
+Afghanistan Afghani
+Albanian Lek
+Algerian Dinar
+Angolan New Kwanza
+Argentina Pesos
+Argentine Peso
+Aruban Florin
+Australian Dollar
+Bahamian Dollar
+Bahraini Dinar
+Bangladeshi Taka
+Barbados Dollar
+Belize Dollar
+Bermudian Dollar
+Bhutan Ngultrum
+Bolivian Boliviano
+Botswana Pula
+Brazilian Real
+Brunei Dollar
+Bulgarian Lev
+Burundi Franc
+Canadian Dollar
+Cape Verde Escudo
+Cayman Islands Dollar
+CFA Franc BCEAO
+CFA Franc BEAC
+CFP Franc
+Chilean Peso
+Chinese Yuan Renminbi
+Colombian Peso
+Comoros Franc
+Costa Rican Colon
+Croatian Kuna
+Cuban Peso
+Cyprus Pound
+Czech Koruna
+Danish Krona
+Djibouti Franc
+Dominican Peso
+Eastern Caribbean Dollars
+Ecuador Sucre
+Egyptian Pound
+El Salvador Colon
+Estonian Krona
+Ethiopian Birr
+Euro
+Falkland Islands Pound
+Fiji Dollar
+Gambian Dalasi
+Ghanaian Cedi
+Gibraltar Pound
+Gold (oz.)
+Guatemalan Quetzal
+Guinea Franc
+Guyanan Dollar
+Haitian Gourde
+Honduran Lempira
+Hong Kong Dollar
+Hungarian Forint
+Iceland Krona
+IMF Special Drawing Right
+Indian Rupee
+Indonesian Rupiah
+Iranian Rial
+Iraqi Dinar
+Israeli New Shekel
+Jamaican Dollar
+Japanese Yen
+Jordanian Dinar
+Kampuchean Riel
+Kazakhstan Tenge
+Kenyan Shilling
+Korean Won
+Kuwaiti Dinar
+Lao Kip
+Latvian Lats
+Lebanese Pound
+Lesotho Loti
+Liberian Dollar
+Libyan Dinar
+Lithuanian Litas
+Macau Pataca
+Malagasy Franc
+Malawi Kwacha
+Malaysian Ringgit
+Maldive Rufiyaa
+Maltese Lira
+Mauritanian Ouguiya
+Mauritius Rupee
+Mexican New Peso
+Mexican Peso
+Mongolian Tugrik
+Moroccan Dirham
+Mozambique Metical
+Myanmar Kyat
+Namibia Dollar
+Nepalese Rupee
+New Zaire
+New Zealand Dollar
+Nicaraguan Cordoba Oro
+Nigerian Naira
+NL Antillian Guilder
+North Korean Won
+Norwegian Krona
+Omani Rial
+Pakistan Rupee
+Palladium (oz.)
+Panamanian Balboa
+Papua New Guinea Kina
+Paraguay Guarani
+Peruvian Nuevo Sol
+Philippine Peso
+Platinum (oz.)
+Polish Zloty
+Pound Sterling
+Qatari Rial
+Romanian Leu
+Russia Rubles
+Russian Rouble
+Samoan Tala
+Sao Tome/Principe Dobra
+Saudi Arabia Riyal
+Seychelles Rupee
+Sierra Leone Leone
+Silver (oz.)
+Singapore Dollar
+Slovak Koruna
+Solomon Islands Dollar
+Somali Shilling
+South African Rand
+Sri Lanka Rupee
+St. Helena Pound
+Sudanese Dinar
+Sudanese Pound
+Surinamese Dollar
+Swaziland Lilangeni
+Swedish Krona
+Swiss Franc
+Syrian Pound
+Taiwan Dollar
+Tanzanian Shilling
+Thai Baht
+Tongan Pa&#x27;anga
+Trinidad/Tobago Dollar
+Tunisian Dinar
+Turkish Lira
+Uganda Shilling
+Ukraine Hryvnia
+United States Dollar
+Uruguayan Peso
+Utd. Arab Emir. Dirham
+Vanuatu Vatu
+Venezuelan Bolivar
+Vietnamese Dong
+Yemeni Riyal
+Yugoslav Dinar
+Yugoslavian Dinar
+Zambian Kwacha
+Zimbabwe Dollar
+-- Select --
+Savings
+Checking
+Other
+The user should be able to see all the filled details present in salary details page
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">app.py::Test_Hrm::test_tax</td>
+          <td class="col-duration">31.65</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stderr setup------------------------------ <br/>[WDM] - Downloading:   0%|                                                                 | 0.00/1.61k [00:00&lt;?, ?B/s][WDM] - Downloading: 16.9kB [00:00, ?B/s]                                                                              
+<br/> ------------------------------Captured stdout call------------------------------ <br/>-- Select --
+Single
+Married
+Non Resident Alien
+Not Applicable
+-- Select --
+Alabama
+Alaska
+American Samoa
+Arizona
+Arkansas
+Armed Forces Africa
+Armed Forces Americas (except Canada)
+Armed Forces Canada
+Armed Forces Europe
+Armed Forces Middle East
+Armed Forces Pacific
+California
+Colorado
+Connecticut
+Delaware
+District of Columbia
+Federated States of Micronesia
+Florida
+Georgia
+Guam
+Hawaii
+Idaho
+Illinois
+Indiana
+Iowa
+Kansas
+Kentucky
+Louisiana
+Maine
+Marshall Islands
+Maryland
+Massachusetts
+Michigan
+Minnesota
+Mississippi
+Missouri
+Montana
+Nebraska
+Nevada
+New Hampshire
+New Jersey
+New Mexico
+New York
+North Carolina
+North Dakota
+Northern Mariana Islands
+Ohio
+Oklahoma
+Oregon
+Palau
+Pennsylvania
+Puerto Rico
+Rhode Island
+South Carolina
+South Dakota
+Tennessee
+Texas
+Utah
+Vermont
+Virgin Islands
+Virginia
+Washington
+West Virginia
+Wisconsin
+Wyoming
+-- Select --
+Single
+Married
+Non Resident Alien
+Not Applicable
+-- Select --
+Alabama
+Alaska
+American Samoa
+Arizona
+Arkansas
+Armed Forces Africa
+Armed Forces Americas (except Canada)
+Armed Forces Canada
+Armed Forces Europe
+Armed Forces Middle East
+Armed Forces Pacific
+California
+Colorado
+Connecticut
+Delaware
+District of Columbia
+Federated States of Micronesia
+Florida
+Georgia
+Guam
+Hawaii
+Idaho
+Illinois
+Indiana
+Iowa
+Kansas
+Kentucky
+Louisiana
+Maine
+Marshall Islands
+Maryland
+Massachusetts
+Michigan
+Minnesota
+Mississippi
+Missouri
+Montana
+Nebraska
+Nevada
+New Hampshire
+New Jersey
+New Mexico
+New York
+North Carolina
+North Dakota
+Northern Mariana Islands
+Ohio
+Oklahoma
+Oregon
+Palau
+Pennsylvania
+Puerto Rico
+Rhode Island
+South Carolina
+South Dakota
+Tennessee
+Texas
+Utah
+Vermont
+Virgin Islands
+Virginia
+Washington
+West Virginia
+Wisconsin
+Wyoming
+-- Select --
+Alabama
+Alaska
+American Samoa
+Arizona
+Arkansas
+Armed Forces Africa
+Armed Forces Americas (except Canada)
+Armed Forces Canada
+Armed Forces Europe
+Armed Forces Middle East
+Armed Forces Pacific
+California
+Colorado
+Connecticut
+Delaware
+District of Columbia
+Federated States of Micronesia
+Florida
+Georgia
+Guam
+Hawaii
+Idaho
+Illinois
+Indiana
+Iowa
+Kansas
+Kentucky
+Louisiana
+Maine
+Marshall Islands
+Maryland
+Massachusetts
+Michigan
+Minnesota
+Mississippi
+Missouri
+Montana
+Nebraska
+Nevada
+New Hampshire
+New Jersey
+New Mexico
+New York
+North Carolina
+North Dakota
+Northern Mariana Islands
+Ohio
+Oklahoma
+Oregon
+Palau
+Pennsylvania
+Puerto Rico
+Rhode Island
+South Carolina
+South Dakota
+Tennessee
+Texas
+Utah
+Vermont
+Virgin Islands
+Virginia
+Washington
+West Virginia
+Wisconsin
+Wyoming
+The user should be able to see all the filled details present in Tax Exemptions details page
+<br/></div></td></tr></tbody></table></body></html>
